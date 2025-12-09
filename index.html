@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Multimodal Health Scout Chatbot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            /* Slate-300 */
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+            /* Slate-400 */
+        }
+
+        /* Typing Animation */
+        .typing-dot {
+            animation: typing 1.4s infinite ease-in-out both;
+        }
+
+        .typing-dot:nth-child(1) {
+            animation-delay: -0.32s;
+        }
+
+        .typing-dot:nth-child(2) {
+            animation-delay: -0.16s;
+        }
+
+        @keyframes typing {
+
+            0%,
+            80%,
+            100% {
+                transform: scale(0);
+            }
+
+            40% {
+                transform: scale(1);
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-slate-50 h-screen flex flex-col font-sans text-slate-800">
+
+    <!-- Sticky Medical Disclaimer Banner -->
+    <div
+        class="bg-red-600 text-white text-center py-3 px-4 text-sm font-bold sticky top-0 z-50 shadow-md tracking-wide">
+        <i class="fas fa-exclamation-triangle mr-2"></i>
+        DISCLAIMER: I am an AI, not a doctor. This is for informational purposes only. In emergencies, call your local
+        emergency number immediately.
+    </div>
+
+    <!-- API Key Modal (Simple Overlay) -->
+    <div id="apiKeyModal"
+        class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 backdrop-blur-sm">
+        <div class="bg-white p-8 rounded-xl shadow-2xl w-96 max-w-full mx-4 border border-slate-200">
+            <h2 class="text-xl font-bold mb-4 text-slate-800">Enter Gemini API Key</h2>
+            <p class="text-sm text-slate-600 mb-4">Your key is stored locally in your browser for this session.</p>
+            <input type="password" id="apiKeyInput" placeholder="Paste your API Key here"
+                class="w-full p-3 border border-slate-300 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500 transition">
+            <button onclick="saveApiKey()"
+                class="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition font-medium shadow-md">Start
+                Chatting</button>
+        </div>
+    </div>
+
+    <!-- Main Chat Container -->
+    <main
+        class="flex-1 overflow-hidden flex flex-col max-w-4xl mx-auto w-full bg-white shadow-2xl my-4 rounded-xl border border-slate-200">
+
+        <!-- Header -->
+        <header
+            class="bg-gradient-to-r from-blue-600 to-teal-500 text-white p-5 flex items-center justify-between shadow-sm">
+            <div class="flex items-center">
+                <div
+                    class="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center text-white mr-4 shadow-inner">
+                    <i class="fas fa-user-md text-2xl"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-xl tracking-tight">Health Scout AI</h1>
+                    <p class="text-xs text-blue-50 font-medium opacity-90">Powered by Gemini 2.5 Flash • Grounded in
+                        Medical Facts</p>
+                </div>
+            </div>
+            <button onclick="clearChat()"
+                class="text-xs bg-white/20 hover:bg-white/30 backdrop-blur-md px-4 py-2 rounded-full transition font-medium shadow-sm">
+                <i class="fas fa-trash-alt mr-1"></i> Clear
+            </button>
+        </header>
+
+        <!-- Chat History -->
+        <div id="chatHistory" class="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50">
+            <!-- Welcome Message -->
+            <div class="flex justify-start">
+                <div class="bg-white border border-slate-200 rounded-2xl rounded-tl-none p-5 max-w-[85%] shadow-sm">
+                    <p class="text-slate-700 leading-relaxed">Hello! I'm your Health Scout Assistant. I can help analyze
+                        symptoms or images and provide information grounded in medical sources.</p>
+                    <p class="text-xs text-slate-500 mt-3 font-semibold border-t border-slate-100 pt-2">Remember: I
+                        cannot diagnose or treat. Always consult a professional.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="p-5 bg-white border-t border-slate-100">
+            <!-- Image Preview -->
+            <div id="imagePreviewContainer" class="hidden mb-3 relative inline-block">
+                <img id="imagePreview" src="" alt="Preview"
+                    class="h-24 w-auto rounded-lg border border-slate-300 shadow-sm">
+                <button onclick="removeImage()"
+                    class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600 shadow-md transition">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <div class="flex items-end space-x-3">
+                <!-- Image Upload Button -->
+                <label
+                    class="cursor-pointer text-slate-400 hover:text-blue-600 p-2 transition transform hover:scale-110"
+                    title="Upload Image">
+                    <i class="fas fa-image text-2xl"></i>
+                    <input type="file" id="imageInput" accept="image/*" class="hidden"
+                        onchange="handleImageUpload(this)">
+                </label>
+
+                <!-- Text Input -->
+                <textarea id="userInput" rows="1"
+                    class="flex-1 bg-slate-100 border-0 rounded-xl p-4 focus:ring-2 focus:ring-blue-500 resize-none max-h-32 text-slate-700 placeholder-slate-400"
+                    placeholder="Describe your symptoms or ask a health question..."></textarea>
+
+                <!-- Send Button -->
+                <button onclick="handleSend()" id="sendBtn"
+                    class="bg-blue-600 text-white rounded-xl p-4 hover:bg-blue-700 transition shadow-md disabled:opacity-50 disabled:cursor-not-allowed transform active:scale-95">
+                    <i class="fas fa-paper-plane text-lg"></i>
+                </button>
+            </div>
+            <p class="text-center text-xs text-slate-400 mt-3">AI can make mistakes. Check important info.</p>
+        </div>
+    </main>
+
+    <script>
+        let apiKey = '';
+        let currentImageBase64 = null;
+        let currentImageMimeType = null;
+
+        // --- UI Functions ---
+
+        function saveApiKey() {
+            const input = document.getElementById('apiKeyInput');
+            if (input.value.trim()) {
+                apiKey = input.value.trim();
+                document.getElementById('apiKeyModal').classList.add('hidden');
+            } else {
+                alert('Please enter a valid API Key.');
+            }
+        }
+
+        function handleImageUpload(input) {
+            const file = input.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    const preview = document.getElementById('imagePreview');
+                    preview.src = e.target.result;
+                    document.getElementById('imagePreviewContainer').classList.remove('hidden');
+
+                    // Extract Base64 (remove data:image/xxx;base64, prefix)
+                    currentImageBase64 = e.target.result.split(',')[1];
+                    currentImageMimeType = file.type;
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function removeImage() {
+            document.getElementById('imageInput').value = '';
+            document.getElementById('imagePreviewContainer').classList.add('hidden');
+            currentImageBase64 = null;
+            currentImageMimeType = null;
+        }
+
+        function appendMessage(role, text, citations = []) {
+            const chatHistory = document.getElementById('chatHistory');
+            const isUser = role === 'user';
+
+            const wrapperDiv = document.createElement('div');
+            wrapperDiv.className = `flex ${isUser ? 'justify-end' : 'justify-start'}`;
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = isUser
+                ? 'bg-blue-600 text-white rounded-2xl rounded-tr-none p-4 max-w-[85%] shadow-md'
+                : 'bg-white border border-slate-200 rounded-2xl rounded-tl-none p-5 max-w-[85%] shadow-sm text-slate-700 leading-relaxed';
+
+            // Render Markdown for bot
+            if (!isUser) {
+                contentDiv.innerHTML = marked.parse(text);
+
+                // Add citations if present
+                if (citations && citations.length > 0) {
+                    const citationHtml = `
+                        <div class="mt-4 pt-3 border-t border-slate-100 text-xs">
+                            <p class="font-semibold text-slate-500 mb-1"><i class="fas fa-book-medical mr-1"></i> Sources:</p>
+                            <ul class="list-disc pl-4 space-y-1 text-blue-600">
+                                ${citations.map(c => `<li><a href="${c.uri}" target="_blank" class="hover:underline">${c.title || c.uri}</a></li>`).join('')}
+                            </ul>
+                        </div>
+                    `;
+                    contentDiv.innerHTML += citationHtml;
+                }
+            } else {
+                contentDiv.textContent = text;
+            }
+
+            wrapperDiv.appendChild(contentDiv);
+            chatHistory.appendChild(wrapperDiv);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        function showLoading() {
+            const chatHistory = document.getElementById('chatHistory');
+            const wrapperDiv = document.createElement('div');
+            wrapperDiv.id = 'loadingIndicator';
+            wrapperDiv.className = 'flex justify-start';
+            wrapperDiv.innerHTML = `
+                <div class="bg-white border border-slate-200 rounded-2xl rounded-tl-none p-5 shadow-sm flex items-center space-x-3">
+                    <span class="text-slate-500 text-sm font-medium">AI is thinking...</span>
+                    <div class="flex space-x-1">
+                        <div class="w-1.5 h-1.5 bg-slate-400 rounded-full typing-dot"></div>
+                        <div class="w-1.5 h-1.5 bg-slate-400 rounded-full typing-dot"></div>
+                        <div class="w-1.5 h-1.5 bg-slate-400 rounded-full typing-dot"></div>
+                    </div>
+                </div>
+            `;
+            chatHistory.appendChild(wrapperDiv);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        function hideLoading() {
+            const loader = document.getElementById('loadingIndicator');
+            if (loader) loader.remove();
+        }
+
+        function clearChat() {
+            if (confirm("Clear chat history?")) {
+                const chatHistory = document.getElementById('chatHistory');
+                chatHistory.innerHTML = `
+                    <div class="flex justify-start">
+                        <div class="bg-white border border-slate-200 rounded-2xl rounded-tl-none p-5 max-w-[85%] shadow-sm">
+                            <p class="text-slate-700">Chat cleared. How can I help you now?</p>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        // --- API Logic ---
+
+        async function fetchWithBackoff(url, options, retries = 5, backoff = 1000) {
+            try {
+                const response = await fetch(url, options);
+                if (!response.ok) {
+                    // If rate limited (429) or server error (5xx), retry
+                    if (response.status === 429 || response.status >= 500) {
+                        throw new Error(`Server returned ${response.status}`);
+                    }
+                    throw new Error(`API Error: ${response.statusText}`);
+                }
+                return await response.json();
+            } catch (error) {
+                if (retries > 0) {
+                    console.warn(`Retrying... attempts left: ${retries}. Waiting ${backoff}ms.`);
+                    await new Promise(resolve => setTimeout(resolve, backoff));
+                    return fetchWithBackoff(url, options, retries - 1, backoff * 2);
+                }
+                throw error;
+            }
+        }
+
+        async function handleSend() {
+            const input = document.getElementById('userInput');
+            const text = input.value.trim();
+
+            if (!text && !currentImageBase64) return;
+            if (!apiKey) {
+                document.getElementById('apiKeyModal').classList.remove('hidden');
+                return;
+            }
+
+            // UI Updates
+            appendMessage('user', text || "[Image Uploaded]");
+            input.value = '';
+            input.style.height = 'auto'; // Reset height
+            showLoading();
+            document.getElementById('sendBtn').disabled = true;
+
+            // Prepare Payload
+            const parts = [];
+            if (text) parts.push({ text: text });
+            if (currentImageBase64) {
+                parts.push({
+                    inline_data: {
+                        mime_type: currentImageMimeType,
+                        data: currentImageBase64
+                    }
+                });
+            }
+
+            const payload = {
+                contents: [{ parts: parts }],
+                tools: [{ google_search: {} }],
+                systemInstruction: {
+                    parts: [{ text: "You are a helpful, professional, and empathetic Medical Health Assistant. You are NOT a doctor. You cannot diagnose, treat, or offer personalized medical advice. Always preface your response with a brief, clear statement that you are an AI and not a substitute for a licensed doctor or emergency services. For image analysis, describe the image objectively, and reinforce the need to see a human specialist for a proper diagnosis. ALWAYS detect the language of the user's input and respond fluently in that SAME language. When presented with a list of symptoms, use search grounding to summarize common, known conditions associated with those symptoms and possible steps for self-care, IF the symptoms are mild. After providing this objective summary, IMMEDIATELY provide the required safety statement." }]
+                }
+            };
+
+            try {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+
+                const data = await fetchWithBackoff(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                hideLoading();
+
+                // Parse Response
+                if (data.candidates && data.candidates[0]) {
+                    const candidate = data.candidates[0];
+                    const responseText = candidate.content.parts.map(p => p.text).join('');
+
+                    // Extract Grounding Metadata
+                    let citations = [];
+                    if (candidate.groundingMetadata && candidate.groundingMetadata.groundingChunks) {
+                        citations = candidate.groundingMetadata.groundingChunks
+                            .filter(c => c.web && c.web.uri)
+                            .map(c => ({ title: c.web.title, uri: c.web.uri }));
+
+                        // Deduplicate citations
+                        citations = citations.filter((v, i, a) => a.findIndex(t => (t.uri === v.uri)) === i);
+                    }
+
+                    appendMessage('bot', responseText, citations);
+                } else {
+                    appendMessage('bot', "I'm sorry, I couldn't generate a response. Please try again.");
+                }
+
+            } catch (error) {
+                hideLoading();
+                console.error(error);
+                appendMessage('bot', `**Error:** ${error.message}. Please check your API key or internet connection.`);
+            } finally {
+                document.getElementById('sendBtn').disabled = false;
+                removeImage(); // Clear image after send
+            }
+        }
+
+        // Auto-resize textarea
+        const tx = document.getElementById('userInput');
+        tx.setAttribute('style', 'height:' + (tx.scrollHeight) + 'px;overflow-y:hidden;');
+        tx.addEventListener("input", OnInput, false);
+
+        function OnInput() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+        }
+    </script>
+</body>
+
+</html>
